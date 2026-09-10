@@ -1,0 +1,149 @@
+// Prisma schema for CanteenX Backend
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  KITCHEN_STAFF
+  SUPER_ADMIN
+}
+
+enum OrderStatus {
+  ORDER_RECEIVED
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  COMPLETED
+  CANCELLED
+}
+
+model College {
+  id          String     @id @default(uuid())
+  collegeId   String     @unique // e.g. "BCE001", "ABC001", "XYZ001"
+  collegeName String
+  location    String
+  logo        String
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relationships
+  users       User[]
+  foodItems   FoodItem[]
+  orders      Order[]
+
+  @@index([collegeName])
+}
+
+model User {
+  id                String    @id @default(uuid())
+  fullName          String
+  email             String    @unique
+  mobileNumber      String?   @unique
+  passwordHash      String
+  studentId         String?   @unique // e.g. "BCE-STU-2048"
+  staffId           String?   @unique // e.g. "KITCH-BCE-001"
+  role              UserRole  @default(STUDENT)
+  collegeId         String?
+  college           College?  @relation(fields: [collegeId], references: [collegeId], onDelete: SetNull)
+  profileImage      String?
+  dietaryPreference String?   @default("veg")
+  typicalBudget     Float?    @default(60)
+  walletBalance     Float     @default(200)
+  favoriteCategories String[] @default([])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relationships
+  orders            Order[]
+
+  @@index([collegeId])
+  @@index([email])
+  @@index([mobileNumber])
+  @@index([studentId])
+  @@index([staffId])
+  @@index([role])
+}
+
+model FoodItem {
+  id                String      @id @default(uuid())
+  collegeId         String
+  college           College     @relation(fields: [collegeId], references: [collegeId], onDelete: Cascade)
+  name              String
+  description       String      @default("")
+  category          String      // e.g. "Breakfast", "Snacks", "Meals", "Beverages", "Desserts"
+  price             Float
+  availableQuantity Int         @default(0) // stock
+  initialStock      Int         @default(0)
+  preparationTime   Int         @default(5) // in minutes
+  dietaryType       String      @default("veg") // "veg", "non-veg", "egg", "vegan"
+  popularity        Int         @default(50) // 1-100
+  rating            Float       @default(4.5)
+  image             String?     // imageUrl
+  isAvailable       Boolean     @default(true)
+  isChefSpecial     Boolean     @default(false)
+  calories          Int?
+  tags              String[]    @default([])
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relationships
+  orderItems        OrderItem[]
+
+  @@index([collegeId])
+  @@index([category])
+  @@index([isAvailable])
+  @@index([collegeId, isAvailable])
+  @@index([collegeId, category])
+}
+
+model Order {
+  id             String      @id @default(uuid())
+  orderId        String      @unique // e.g. "CX-1047"
+  studentId      String
+  student        User        @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  collegeId      String
+  college        College     @relation(fields: [collegeId], references: [collegeId], onDelete: Restrict)
+  totalAmount    Float
+  status         OrderStatus @default(ORDER_RECEIVED)
+  pickupCode     String      // 4-digit code e.g. "8472"
+  pickupToken    String      @unique // Unique verification token
+  pickupVerified Boolean     @default(false)
+  pickupTime     String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  // Relationships
+  items          OrderItem[]
+
+  @@index([studentId])
+  @@index([collegeId])
+  @@index([status])
+  @@index([orderId])
+  @@index([pickupToken])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id               String   @id @default(uuid())
+  orderId          String
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  foodItemId       String
+  foodItem         FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Restrict)
+  foodNameSnapshot String
+  quantity         Int
+  priceSnapshot    Float
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([foodItemId])
+}
+
